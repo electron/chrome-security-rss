@@ -1,0 +1,26 @@
+# The `deploy_path` in the app's electron/infra ionic-platform-apps entry.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+replicas:
+  - name: server
+    count: 1
+patches:
+  - target:
+      kind: HTTPRoute
+      name: server
+    patch: |-
+      - op: replace
+        path: /spec/hostnames/0
+        value: chrome-security-rss.electronjs.org
+  - target:
+      kind: Deployment
+      name: server
+    patch: |-
+      # The app has no secrets (`secrets = {}` in infra), so no server-secrets
+      # ExternalSecret is created. Without this the pod would sit in
+      # CreateContainerConfigError waiting for it.
+      - op: add
+        path: /spec/template/spec/containers/0/envFrom/0/secretRef/optional
+        value: true
