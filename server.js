@@ -3,6 +3,11 @@ const app = express();
 const Parser = require('rss-parser');
 const RSS = require('rss');
 
+// Liveness/readiness probe; "/" fetches Google's feed on every hit.
+app.get("/healthz", (req, res) => {
+  res.send("ok");
+});
+
 app.get("/", (req, res) => {
   const parser = new Parser();
   (async () => {
