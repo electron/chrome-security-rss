@@ -50,17 +50,15 @@ patches:
           options:
             - name: ndots
               value: "5"
-      # The proxy presents a self-signed certificate per allowed hostname;
-      # infra syncs the public certificates (no keys) into this Secret.
-      # Node reads the bundle at startup, so a rotated certificate needs a
-      # restart (electron/infra modules/ionic-app README, "Rotating a
-      # certificate").
+      # The proxy's certificates come from a CA of this app's own, which
+      # cert-manager keeps renewed; trust-manager writes only the CA
+      # certificate into this ConfigMap, and leaf renewals never change it.
       - op: add
         path: /spec/template/spec/volumes/-
         value:
           name: egress-proxy-trust
-          secret:
-            secretName: egress-proxy-trust
+          configMap:
+            name: chrome-security-rss-egress-trust
       - op: add
         path: /spec/template/spec/containers/0/volumeMounts/-
         value:
