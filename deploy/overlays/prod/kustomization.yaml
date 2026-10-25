@@ -28,30 +28,43 @@ patches:
       kind: Deployment
       name: server
     patch: |-
-      # Outbound HTTPS goes through the egress proxy that electron/infra runs
-      # for this app (`egress_proxy` in terraform/global/ionic-platform-apps),
-      # which allows only the feed fetch in server.js. Each allowed hostname is
-      # pinned to the proxy Service's fixed ClusterIP; the pod has no other
-      # internet egress, so a hostname missing here fails to connect. Keep this
-      # list equal to the `egress_proxy.rules` hosts in infra.
+      # electron/infra runs an egress allowlist for this app (`egress_proxy`
+      # in terraform/global/ionic-platform-apps): its own DNS resolver, which
+      # answers only the allowed hostnames (with the egress proxy's address)
+      # and cluster.local, and the proxy, which allows only the feed fetch in
+      # server.js. The pod cannot reach kube-dns or the internet directly, and
+      # admission rejects pods in this namespace without this dnsConfig. The
+      # allowed hostnames live only in infra; nothing here names them.
       - op: add
-        path: /spec/template/spec/hostAliases
+        path: /spec/template/spec/dnsPolicy
+        value: None
+      - op: add
+        path: /spec/template/spec/dnsConfig
         value:
-          - ip: 10.0.0.200
-            hostnames:
-              - chromereleases.googleblog.com
-      # The proxy presents certificates from a per-app CA; electron/infra
-      # writes its public certificate to the egress-proxy-ca ConfigMap.
+          nameservers:
+            - 10.0.0.201
+          searches:
+            - chrome-security-rss.svc.cluster.local
+            - svc.cluster.local
+            - cluster.local
+          options:
+            - name: ndots
+              value: "5"
+      # The proxy presents a self-signed certificate per allowed hostname;
+      # infra syncs the public certificates (no keys) into this Secret.
+      # Node reads the bundle at startup, so a rotated certificate needs a
+      # restart (electron/infra modules/ionic-app README, "Rotating a
+      # certificate").
       - op: add
         path: /spec/template/spec/volumes/-
         value:
-          name: egress-proxy-ca
-          configMap:
-            name: egress-proxy-ca
+          name: egress-proxy-trust
+          secret:
+            secretName: egress-proxy-trust
       - op: add
         path: /spec/template/spec/containers/0/volumeMounts/-
         value:
-          name: egress-proxy-ca
+          name: egress-proxy-trust
           mountPath: /etc/egress-proxy
           readOnly: true
       - op: add
