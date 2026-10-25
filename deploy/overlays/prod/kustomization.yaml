@@ -24,3 +24,38 @@ patches:
       - op: add
         path: /spec/template/spec/containers/0/envFrom/0/secretRef/optional
         value: true
+  - target:
+      kind: Deployment
+      name: server
+    patch: |-
+      # Outbound HTTPS goes through the egress proxy that electron/infra runs
+      # for this app (`egress_proxy` in terraform/global/ionic-platform-apps),
+      # which allows only the feed fetch in server.js. Each allowed hostname is
+      # pinned to the proxy Service's fixed ClusterIP; the pod has no other
+      # internet egress, so a hostname missing here fails to connect. Keep this
+      # list equal to the `egress_proxy.rules` hosts in infra.
+      - op: add
+        path: /spec/template/spec/hostAliases
+        value:
+          - ip: 10.0.0.200
+            hostnames:
+              - chromereleases.googleblog.com
+      # The proxy presents certificates from a per-app CA; electron/infra
+      # writes its public certificate to the egress-proxy-ca ConfigMap.
+      - op: add
+        path: /spec/template/spec/volumes/-
+        value:
+          name: egress-proxy-ca
+          configMap:
+            name: egress-proxy-ca
+      - op: add
+        path: /spec/template/spec/containers/0/volumeMounts/-
+        value:
+          name: egress-proxy-ca
+          mountPath: /etc/egress-proxy
+          readOnly: true
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: NODE_EXTRA_CA_CERTS
+          value: /etc/egress-proxy/ca.crt
