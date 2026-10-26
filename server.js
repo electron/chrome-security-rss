@@ -11,7 +11,9 @@ app.get("/healthz", (req, res) => {
 app.get("/", (req, res) => {
   const parser = new Parser();
   (async () => {
-    const feed = await parser.parseURL('https://chromereleases.googleblog.com/feeds/posts/default?alt=rss');
+    // redirect=false: otherwise Blogger 302s to http://feeds.feedburner.com,
+    // a plain-HTTP fetch the cluster's egress proxy does not allow.
+    const feed = await parser.parseURL('https://chromereleases.googleblog.com/feeds/posts/default?alt=rss&redirect=false');
     const filteredFeed = new RSS({
       title: feed.title,
       feed_url: "https://chrome-security-rss.glitch.me/",
